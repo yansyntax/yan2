@@ -1,6 +1,6 @@
 #!/bin/bash
 # zivpn source : zahidbd2
-# udp custom  : 
+# udp custom  : Anonymous 
 # script by lunatic.
 # ========================================
 # COLOR SYSTEM
@@ -161,19 +161,6 @@ systemctl enable zivpn >/dev/null
 systemctl restart zivpn
 
 # ========================================
-# UDP CUSTOM
-# ========================================
-echo -e " ${WHITE}Deploying UDP Custom:${NC}"
-
-rm -rf /usr/bin/udp /usr/bin/udp-custom
-mkdir -p /usr/bin/udp
-
-wget -qO /usr/bin/udp-custom "https://drive.google.com/uc?id=1ixz82G_ruRBnEEp4vLPNF2KZ1k8UfrkV"
-chmod +x /usr/bin/udp-custom
-
-wget -qO /usr/bin/udp/config.json "https://drive.google.com/uc?id=1klXTiKGUd2Cs5cBnH3eK2Q1w50Yx3jbf"
-
-# ========================================
 # NAT CONFIG
 # ========================================
 echo -e " ${WHITE}Applying Network Rules:${NC}"
@@ -183,10 +170,111 @@ iptables -t nat -A PREROUTING -i "$IFACE" -p udp --dport 6000:19999 -j DNAT --to
 
 iptables-save > /etc/iptables/rules.v4
 
+
+# ========================================
+# UDP CUSTOM HARUS KE INSTALL KE 2
+# ========================================
+set -e
+
+cd
+mkdir -p /usr/bin/udp
+
+echo "[+] Set timezone Asia/Jakarta"
+ln -fs /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
+
+# ===============================
+# DOWNLOAD UDP CUSTOM
+# ===============================
+echo "[+] Download udp-custom binary"
+wget -q --show-progress --load-cookies /tmp/cookies.txt \
+"https://docs.google.com/uc?export=download&confirm=$(wget --quiet \
+--save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate \
+'https://docs.google.com/uc?export=download&id=1ixz82G_ruRBnEEp4vLPNF2KZ1k8UfrkV' \
+-O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p')&id=1ixz82G_ruRBnEEp4vLPNF2KZ1k8UfrkV" \
+-O /usr/bin/udp-custom && rm -f /tmp/cookies.txt
+chmod +x /usr/bin/udp-custom
+
+echo "[+] Download config.json"
+wget -q --show-progress --load-cookies /tmp/cookies.txt \
+"https://docs.google.com/uc?export=download&confirm=$(wget --quiet \
+--save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate \
+'https://docs.google.com/uc?export=download&id=1klXTiKGUd2Cs5cBnH3eK2Q1w50Yx3jbf' \
+-O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p')&id=1klXTiKGUd2Cs5cBnH3eK2Q1w50Yx3jbf" \
+-O /usr/bin/udp/config.json && rm -f /tmp/cookies.txt
+chmod 644 /usr/bin/udp/config.json
+
+# ===============================
+# UDP KERNEL TUNING
+# ===============================
+echo "[+] Apply UDP sysctl tuning"
+cat >/etc/sysctl.d/99-udp-custom.conf <<EOF
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+EOF
+sysctl --system >/dev/null
+
+# ===============================
+# PORT & NAT SETUP
+# ===============================
+UDP_PORT="7300"
+DNAT_MIN="6000"
+DNAT_MAX="19999"
+
+DEF_IF=$(ip -4 route | awk '/default/ {print $5; exit}')
+if [ -z "$DEF_IF" ]; then
+  echo "❌ Tidak bisa deteksi interface default"
+  exit 1
+fi
+
+echo "[+] Setup DNAT UDP ${DNAT_MIN}-${DNAT_MAX} -> ${UDP_PORT}"
+iptables -t nat -C PREROUTING -i "$DEF_IF" -p udp --dport ${DNAT_MIN}:${DNAT_MAX} \
+-j DNAT --to-destination :${UDP_PORT} 2>/dev/null || \
+iptables -t nat -A PREROUTING -i "$DEF_IF" -p udp --dport ${DNAT_MIN}:${DNAT_MAX} \
+-j DNAT --to-destination :${UDP_PORT}
+
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+
+# ===============================
+# FIREWALL
+# ===============================
+if command -v ufw >/dev/null 2>&1; then
+  echo "[+] Allow UDP ports in UFW"
+  ufw allow ${DNAT_MIN}:${DNAT_MAX}/usr/bin/udp >/dev/null || true
+  ufw allow ${UDP_PORT}/usr/bin/udp >/dev/null || true
+fi
+
+# ===============================
+# SYSTEMD SERVICE
+# ===============================
+echo "[+] Create systemd service"
+cat >/etc/systemd/system/udp-custom.service <<EOF
+[Unit]
+Description=UDP Custom Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+Type=simple
+WorkingDirectory=/usr/bin/udp
+ExecStart=/usr/bin/udp-custom server
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable udp-custom >/dev/null
+systemctl restart udp-custom
+
 # ========================================
 # RESULT
 # ========================================
 STATUS=$(systemctl is-active zivpn)
+STAUDC=$(systemctl is-active udp-custom)
 
 clear
 
@@ -196,15 +284,17 @@ echo -e "${CYAN_SOFT}━━━━━━━━━━━━━━━━━━━�
 
 echo ""
 echo -e " ${WHITE}Service Information:${NC}"
-echo -e "   ${CYAN}•${NC} Service     : ZIVPN UDP Engine"
-echo -e "   ${CYAN}•${NC} Status      : ${GREEN}${STATUS^^}${NC}"
+echo -e "   ${CYAN}•${NC} Service     : ZIVPN UDP,CUSTOM-udp Engine"
+echo -e "   ${CYAN}•${NC} ZIVPN      : ${GREEN}${STATUS^^}${NC}"
+echo -e "   ${CYAN}•${NC} UdpCustom : ${GREEN}${STAUDC^^}${NC}"
 echo -e "   ${CYAN}•${NC} Mode        : High Performance Tunnel"
 
 echo ""
 echo -e " ${WHITE}Network Configuration:${NC}"
 echo -e "   ${CYAN}•${NC} Interface   : $IFACE"
 echo -e "   ${CYAN}•${NC} UDP Range   : 6000 - 19999"
-echo -e "   ${CYAN}•${NC} Forward Port: 5667"
+echo -e "   ${CYAN}•${NC} Forward Zivpn: 5667"
+echo -e "   ${CYAN}•${NC} Forward Zivpn: 7300"
 
 echo ""
 echo -e " ${WHITE}Security Layer:${NC}"
