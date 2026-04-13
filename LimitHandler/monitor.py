@@ -14,8 +14,7 @@ SERVICES = {
     "trojan": "/etc/lunatic/trojan",
     "vmess": "/etc/lunatic/vmess",
     "vless": "/etc/lunatic/vless",
-    "ssh": "/etc/lunatic/ssh",
-    "zivpn": "/etc/zivpn"
+    "ssh": "/etc/lunatic/ssh"
 }
 
 XRAY_CONFIG = "/etc/xray/config.json"
@@ -71,7 +70,7 @@ def get_user_ips(user):
                         pass
     return list(ips)
 
-# ================= IPTABLES SAFE =================
+# ================= IPTABLES =================
 def drop_ip(ip):
     if subprocess.call(["iptables","-C","INPUT","-s",ip,"-j","DROP"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
         subprocess.run(["iptables","-I","INPUT","-s",ip,"-j","DROP"])
@@ -94,8 +93,6 @@ def force_kill(user, service):
 
     if service == "ssh":
         subprocess.run(["systemctl","restart","ssh"], stdout=subprocess.DEVNULL)
-    elif service == "zivpn":
-        subprocess.run(["systemctl","restart","zivpn"], stdout=subprocess.DEVNULL)
     else:
         subprocess.run(["systemctl","restart","xray"], stdout=subprocess.DEVNULL)
 
@@ -111,7 +108,6 @@ def delete_files(user):
 def remove_user(user, service):
     base = SERVICES.get(service, "")
 
-    # hapus quota + file
     if service in ["trojan","vmess","vless"]:
         for sub in ["ip","detail"]:
             path = Path(f"{base}/{sub}")
@@ -129,19 +125,12 @@ def remove_user(user, service):
 
     delete_files(user)
 
-    # DB
     db = f"{base}/{service}.db"
     if os.path.exists(db):
         subprocess.run(["sed","-i",f"/^### {user}/d",db])
 
-    # SSH
     if service == "ssh":
         subprocess.run(["userdel","-f",user], stdout=subprocess.DEVNULL)
-
-    # ZIVPN
-    if service == "zivpn":
-        subprocess.run(["sed","-i",f"/{user}/d","/etc/zivpn/users.db"])
-        subprocess.run(["sed","-i",f"/{user}/d","/etc/zivpn/config.json"])
 
 # ================= UPDATE TRAFFIC =================
 def update_usage():
@@ -275,7 +264,7 @@ def check_expired():
 
         db.write_text("\n".join(new_lines) + "\n")
 
-# ================= TRIAL SYSTEM =================
+# ================= TRIAL =================
 def check_trial():
     if not os.path.exists(TRIAL_DB):
         return
@@ -299,14 +288,12 @@ def check_trial():
 
             ips = get_user_ips(user)
 
-            # expired
             if now >= exp:
                 force_kill(user, service)
                 remove_user(user, service)
                 send("⛔ TRIAL EXPIRED", user, service, "DELETED", ips)
                 continue
 
-            # multi login
             if limit > 0 and len(ips) > limit:
                 force_kill(user, service)
                 remove_user(user, service)
