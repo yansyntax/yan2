@@ -372,17 +372,30 @@ TOOLS_SETUP() {
     (apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" >/dev/null 2>&1) & loading $! "Upgrading packages"
     (apt dist-upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" >/dev/null 2>&1) & loading $! "Running dist-upgrade"
 
-    (apt install -y \
-        zip pwgen openssl netcat socat cron bash-completion figlet sudo \
-        unzip p7zip-full screen git cmake make build-essential \
-        gnupg gnupg2 gnupg1 apt-transport-https lsb-release jq htop lsof tar \
-        dnsutils python3-pip python-is-python3 ruby ca-certificates bsd-mailx msmtp-mta \
-        ntpdate chrony easy-rsa openvpn \
-        net-tools rsyslog sed xz-utils libc6 util-linux shc gcc g++ \
-        libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev \
-        libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison \
-        libnss3-tools libevent-dev zlib1g-dev libssl-dev libsqlite3-dev \
-        libxml-parser-perl dirmngr >/dev/null 2>&1) & loading $! "Installing all base packages"
+(apt install -y \
+    # basic utils
+    curl wget jq unzip zip tar xz-utils \
+    sudo bash-completion screen \
+    
+    # network & tunneling
+    netcat socat net-tools cron \
+    
+    # security / ssl
+    openssl ca-certificates gnupg apt-transport-https \
+    
+    # monitoring ringan
+    htop lsof \
+    
+    # python (opsional bot / script)
+    python3 python3-pip \
+    
+    # build minimal (kalau ada compile kecil)
+    build-essential libssl-dev zlib1g-dev \
+    
+    # VPN (yang kamu minta)
+    openvpn easy-rsa chrony \
+    
+    >/dev/null 2>&1) & loading $! "Installing base packages + VPN"
 
     clear
     echo ""
@@ -1368,7 +1381,7 @@ ENABLED_SERVICE() {
 
     systemctl daemon-reload >/dev/null 2>&1
 
-    for srv in nginx xray cron haproxy dropbear ws ssh sshd almonitor syslog zivpn udp-custom udp-mini-1; do
+    for srv in nginx xray cron haproxy dropbear ws ssh sshd monitor syslog zivpn udp-custom udp-mini-1; do
         (systemctl restart $srv >/dev/null 2>&1) & loading $! "Restarting $srv"
     done
 
