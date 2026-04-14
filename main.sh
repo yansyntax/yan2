@@ -145,6 +145,7 @@ sleep 2
 (apt install ufw -y >/dev/null 2>&1) & loading $! "Installing ufw"
 (apt install telnet -y >/dev/null 2>&1) & loading $! "Installing telnet"
 (apt install speedtest-cli -y >/dev/null 2>&1) & loading $! "Installing speedtest-cli"
+(apt install unzip -y >/dev/null 2>&1) & loading $! "Installing unzip"
 
 # buat ubuntu 22 dan 25
 (apt install netcat-traditional -y >/dev/null 2>&1) & loading $! "Installing netcat-traditional"
@@ -374,20 +375,14 @@ TOOLS_SETUP() {
 
 (apt install -y \
     # basic utils
-    curl wget jq unzip zip tar xz-utils \
+    tar xz-utils \
     sudo bash-completion screen \
     
     # network & tunneling
-    netcat socat net-tools cron \
+    net-tools cron \
     
     # security / ssl
     openssl ca-certificates gnupg apt-transport-https \
-    
-    # monitoring ringan
-    htop lsof \
-    
-    # python (opsional bot / script)
-    python3 python3-pip \
     
     # build minimal (kalau ada compile kecil)
     build-essential libssl-dev zlib1g-dev \
